@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"lever/engine"
@@ -19,7 +20,7 @@ func NewGrepCmd() *engine.Command {
 		Short: "Linux 风格的 grep 文本搜索工具",
 		Long:  `使用强大的正则表达式在本地文件或管道流中检索特定的文本行。支持高亮、计数、反选等主流功能。`,
 		Args:  utils.MinimumNArgs(1),
-		Run: func(c *engine.Command, args []string) {
+		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
 			patternStr := flags.Arg(0)
 			files := flags.Args()[1:]
@@ -29,24 +30,22 @@ func NewGrepCmd() *engine.Command {
 			}
 			reg, err := regexp.Compile(patternStr)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "grep 错误: 无效的正则表达式 '%s': %v\n", patternStr, err)
-				os.Exit(1)
+				return fmt.Errorf("grep 错误: 无效的正则表达式 '%s': %w", patternStr, err)
 			}
 			if len(files) == 0 && utils.StdinIsPipe() {
-				processGrepStream(os.Stdin, reg, "", invertMatch, lineNumber, countOnly, filesWithMatch, colorOpt)
-				return
+				return processGrepStream(os.Stdin, reg, "", invertMatch, lineNumber, countOnly, filesWithMatch, colorOpt)
 			}
 
 			if len(files) == 0 {
-				fmt.Println("grep 错误: 未指定输入文件或没有检测到管道输入")
-				return
+				return fmt.Errorf("grep 错误: 未指定输入文件或没有检测到管道输入")
 			}
 
 			showFilename := len(files) > 1
+			var failures []error
 			for _, filename := range files {
 				file, err := os.Open(filename)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "grep 错误: 无法打开文件 %s: %v\n", filename, err)
+					failures = append(failures, fmt.Errorf("grep 错误: 无法打开文件 %s: %w", filename, err))
 					continue
 				}
 
@@ -55,9 +54,14 @@ func NewGrepCmd() *engine.Command {
 					ctxName = filename
 				}
 
-				processGrepStream(file, reg, ctxName, invertMatch, lineNumber, countOnly, filesWithMatch, colorOpt)
-				file.Close()
+				if err := processGrepStream(file, reg, ctxName, invertMatch, lineNumber, countOnly, filesWithMatch, colorOpt); err != nil {
+					failures = append(failures, fmt.Errorf("grep 错误: 无法读取文件 %s: %w", filename, err))
+				}
+				if err := file.Close(); err != nil {
+					failures = append(failures, fmt.Errorf("grep 错误: 无法关闭文件 %s: %w", filename, err))
+				}
 			}
+			return errors.Join(failures...)
 		},
 	}
 
@@ -72,7 +76,7 @@ func NewGrepCmd() *engine.Command {
 
 }
 
-func processGrepStream(reader io.Reader, reg *regexp.Regexp, filename string, invert, showLine, countMode, listFiles bool, color string) {
+func processGrepStream(reader io.Reader, reg *regexp.Regexp, filename string, invert, showLine, countMode, listFiles bool, color string) error {
 	scanner := bufio.NewScanner(reader)
 	currentLine := 0
 	matchCount := 0
@@ -89,7 +93,7 @@ func processGrepStream(reader io.Reader, reg *regexp.Regexp, filename string, in
 				if filename != "" {
 					fmt.Println(filename)
 				}
-				return
+				return nil
 			}
 
 			if !countMode {
@@ -120,4 +124,5 @@ func processGrepStream(reader io.Reader, reg *regexp.Regexp, filename string, in
 			fmt.Println(matchCount)
 		}
 	}
+	return scanner.Err()
 }

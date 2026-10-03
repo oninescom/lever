@@ -1,12 +1,14 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"lever/engine"
 	"lever/utils"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func NewCpCmd() *engine.Command {
@@ -18,23 +20,24 @@ func NewCpCmd() *engine.Command {
 		Short: "Linux 风格的 cp 复制工具",
 		Long:  `复制文件或文件夹。支持使用 -r 递归复制整个目录树，以及使用 -f 强制覆盖。`,
 		Args:  utils.MinimumNArgs(2),
-		Run: func(c *engine.Command, args []string) {
+		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
 			sources := flags.Args()[:len(flags.Args())-1]
 			dest := flags.Args()[len(flags.Args())-1]
 
 			// 多文件批量复制时，利用你上传的 ValidMultiSourceDestination 进行目标目录校验
 			if len(sources) > 1 && !utils.ValidMultiSourceDestination(sources, dest) {
-				fmt.Fprintln(os.Stderr, "cp 错误: 复制多个文件或目录时，目标必须是一个已存在的目录")
-				os.Exit(1)
+				return fmt.Errorf("cp 错误: 复制多个文件或目录时，目标必须是一个已存在的目录")
 			}
 
+			var failures []error
 			for _, src := range sources {
 				err := copyPath(src, dest, recursive, force)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "cp 错误: 复制 '%s' 失败: %v\n", src, err)
+					failures = append(failures, fmt.Errorf("cp 错误: 复制 '%s' 失败: %w", src, err))
 				}
 			}
+			return errors.Join(failures...)
 		},
 	}
 
@@ -61,9 +64,57 @@ func copyPath(src, dest string, recursive, force bool) error {
 		if !recursive {
 			return fmt.Errorf("'%s' 是一个目录 (未指定 -r 参数)", src)
 		}
+		if err := checkCopyDestination(src, dest); err != nil {
+			return err
+		}
 		return copyDir(src, dest, force)
 	}
+	if err == nil && os.SameFile(srcStat, destStat) {
+		return fmt.Errorf("源文件和目标文件相同")
+	}
 	return copyFile(src, dest, force)
+}
+
+func checkCopyDestination(src, dest string) error {
+	source, err := filepath.EvalSymlinks(src)
+	if err != nil {
+		return err
+	}
+	source, err = filepath.Abs(source)
+	if err != nil {
+		return err
+	}
+
+	target, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+	var suffix []string
+	for {
+		resolved, err := filepath.EvalSymlinks(target)
+		if err == nil {
+			target = filepath.Join(append([]string{resolved}, suffix...)...)
+			break
+		}
+		if !os.IsNotExist(err) {
+			return err
+		}
+		parent := filepath.Dir(target)
+		if parent == target {
+			return err
+		}
+		suffix = append([]string{filepath.Base(target)}, suffix...)
+		target = parent
+	}
+
+	rel, err := filepath.Rel(source, target)
+	if err != nil {
+		return err
+	}
+	if rel == "." || rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("目标目录位于源目录内部: %s", dest)
+	}
+	return nil
 }
 
 func copyFile(src, dest string, force bool) error {

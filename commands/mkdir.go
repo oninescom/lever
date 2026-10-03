@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"lever/engine"
 	"lever/utils"
@@ -14,8 +15,9 @@ func NewMkdirCmd() *engine.Command {
 		Short: "Linux 风格的 mkdir 工具",
 		Long:  `创建目录。支持使用 -p 参数一键递归创建多级嵌套子目录。`,
 		Args:  utils.MinimumNArgs(1),
-		Run: func(c *engine.Command, args []string) {
+		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
+			var failures []error
 			for _, dir := range flags.Args() {
 				var err error
 				if parents {
@@ -25,9 +27,10 @@ func NewMkdirCmd() *engine.Command {
 				}
 
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "mkdir 错误: 无法创建目录 '%s': %v\n", dir, err)
+					failures = append(failures, fmt.Errorf("mkdir 错误: 无法创建目录 '%s': %w", dir, err))
 				}
 			}
+			return errors.Join(failures...)
 		},
 	}
 	flags := cmd.Flags()
