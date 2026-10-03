@@ -127,6 +127,10 @@ func copyFile(src, dest string, force bool) error {
 		return err
 	}
 	defer in.Close()
+	size, err := in.Stat()
+	if err != nil {
+		return err
+	}
 
 	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
@@ -134,7 +138,13 @@ func copyFile(src, dest string, force bool) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, in)
+	progress := newProgressBar("Copying "+filepath.Base(src), size.Size())
+	if progress != nil {
+		defer progress.Finish()
+		_, err = io.Copy(io.MultiWriter(out, progress), in)
+	} else {
+		_, err = io.Copy(out, in)
+	}
 	return err
 }
 

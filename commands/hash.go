@@ -13,6 +13,7 @@ import (
 	"lever/engine"
 	"lever/utils"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -48,7 +49,7 @@ func NewHashCmd() *engine.Command {
 
 			// Read standard input when no file was supplied.
 			if len(files) == 0 && utils.StdinIsPipe() {
-				checksum, err := calculateHash(os.Stdin, hasher)
+				checksum, err := calculateHash(os.Stdin, hasher, nil)
 				if err != nil {
 					return err
 				}
@@ -71,7 +72,12 @@ func NewHashCmd() *engine.Command {
 
 				// Reset the hasher between files.
 				hasher.Reset()
-				checksum, err := calculateHash(file, hasher)
+				var progress *progressBar
+				if info, statErr := file.Stat(); statErr == nil {
+					progress = newProgressBar("Hashing "+filepath.Base(filename), info.Size())
+				}
+				checksum, err := calculateHash(file, hasher, progress)
+				progress.Finish()
 				closeErr := file.Close()
 
 				if err != nil {
@@ -96,10 +102,13 @@ func NewHashCmd() *engine.Command {
 }
 
 // calculateHash computes a checksum without loading the whole input into memory.
-func calculateHash(reader io.Reader, hasher hash.Hash) (string, error) {
+func calculateHash(reader io.Reader, hasher hash.Hash, progress *progressBar) (string, error) {
 	bufSrc := make([]byte, 32768)
-
-	if _, err := io.CopyBuffer(hasher, reader, bufSrc); err != nil {
+	var writer io.Writer = hasher
+	if progress != nil {
+		writer = io.MultiWriter(hasher, progress)
+	}
+	if _, err := io.CopyBuffer(writer, reader, bufSrc); err != nil {
 		return "", err
 	}
 

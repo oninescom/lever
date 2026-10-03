@@ -144,6 +144,11 @@ func fetchURL(rawURL, method, data string, hasData bool, outputFile string) erro
 		return fmt.Errorf("curl error: HTTP request failed: status %d", status)
 	}
 
+	var progress *progressBar
+	if outputFile != "" {
+		progress = newProgressBar("Downloading", responseContentLength(request))
+		defer func() { progress.Finish() }()
+	}
 	var writer io.Writer = os.Stdout
 	var file *os.File
 	if outputFile != "" {
@@ -165,15 +170,37 @@ func fetchURL(rawURL, method, data string, hasData bool, outputFile string) erro
 		if read == 0 {
 			break
 		}
-		if _, err := writer.Write(buffer[:read]); err != nil {
+		written, err := writer.Write(buffer[:read])
+		if err != nil {
 			return fmt.Errorf("curl error: cannot write response: %w", err)
 		}
+		if written != int(read) {
+			return fmt.Errorf("curl error: cannot write response: %w", io.ErrShortWrite)
+		}
+		progress.Add(int64(written))
 	}
 	if file != nil {
 		if err := file.Close(); err != nil {
 			return fmt.Errorf("curl error: cannot close destination file: %w", err)
 		}
+		progress.Finish()
+		progress = nil
 		fmt.Fprintln(os.Stderr, "Download completed.")
 	}
 	return nil
+}
+
+func responseContentLength(request uintptr) int64 {
+	var buffer [64]uint16
+	size := uint32(unsafe.Sizeof(buffer))
+	const contentLengthQuery = 5 // HTTP_QUERY_CONTENT_LENGTH
+	ok, _, _ := httpQueryInfo.Call(request, contentLengthQuery, uintptr(unsafe.Pointer(&buffer[0])), uintptr(unsafe.Pointer(&size)), 0)
+	if ok == 0 || size%2 != 0 {
+		return 0
+	}
+	length, err := strconv.ParseInt(windows.UTF16ToString(buffer[:size/2]), 10, 64)
+	if err != nil || length < 0 {
+		return 0
+	}
+	return length
 }

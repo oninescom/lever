@@ -1,11 +1,13 @@
 package commands
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -58,6 +60,23 @@ func TestCurlFollowsRedirect(t *testing.T) {
 	data, err := os.ReadFile(output)
 	if err != nil || string(data) != "redirected" {
 		t.Fatalf("redirect output = %q, %v", data, err)
+	}
+}
+
+func TestCurlDownloadsLargeResponse(t *testing.T) {
+	payload := bytes.Repeat([]byte("x"), 2<<20)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+		_, _ = w.Write(payload)
+	}))
+	defer server.Close()
+	output := filepath.Join(t.TempDir(), "large.bin")
+	if err := NewCurlCmd().ExecuteArgs([]string{"-o", output, server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil || !bytes.Equal(data, payload) {
+		t.Fatalf("large download: %d bytes, %v", len(data), err)
 	}
 }
 
