@@ -30,6 +30,7 @@ func main() {
 		commands.NewNcCmd(),
 		commands.NewDuCmd(),
 		commands.NewAwkCmd(),
+		commands.NewTailCmd(),
 	)
 
 	rootCmd.AddCommand(
