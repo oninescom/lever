@@ -15,6 +15,7 @@ type Command struct {
 	Args             func([]string) error
 	Run              func(*Command, []string)
 	RunE             func(*Command, []string) error
+	PrepareArgs      func([]string) []string
 	FlagsSet         *pflag.FlagSet
 	Children         []*Command
 	Parent           *Command
@@ -76,6 +77,9 @@ func (c *Command) ExecuteArgs(args []string) error {
 			}
 		}
 		return fmt.Errorf("未知命令: %s", args[0])
+	}
+	if c.PrepareArgs != nil {
+		args = c.PrepareArgs(args)
 	}
 	positionals, help, err := c.parseFlags(args)
 	if err != nil {
