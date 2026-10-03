@@ -102,3 +102,25 @@ func TestCMDShimPipeline(t *testing.T) {
 		t.Fatalf("unexpected pipeline output: %q", output)
 	}
 }
+
+func TestCMDAutoRunPrependsShimDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "curl.cmd"), []byte("@echo off\r\necho lever-shim\r\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(dir, "check.cmd")
+	if err := os.WriteFile(script, []byte("@echo off\r\n"+cmdAutoRunValue(dir, `C:\Tools\lever.exe`, []string{"curl"}, "")+"\r\ncurl\r\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("cmd.exe", "/d", "/c", script)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("CMD command lookup: %v\n%s", err, output)
+	}
+	if strings.TrimSpace(string(output)) != "lever-shim" {
+		t.Fatalf("CMD did not prefer Lever shim: %q", output)
+	}
+	if got := cmdAutoRunValue(dir, `C:\Tools\lever.exe`, []string{"curl"}, "echo previous"); !strings.HasSuffix(got, " & echo previous") || !strings.Contains(got, `doskey curl="C:\Tools\lever.exe" curl $*`) {
+		t.Fatalf("existing AutoRun was not preserved: %q", got)
+	}
+}

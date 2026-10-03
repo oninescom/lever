@@ -12,8 +12,8 @@ import (
 func NewTouchCmd() *engine.Command {
 	return &engine.Command{
 		Use:   "touch [file...]",
-		Short: "Linux 风格的 touch 工具",
-		Long:  `在 Windows 中快速创建空文件，或者更新已有文件的时间戳（访问时间和修改时间）。`,
+		Short: "Create files or update timestamps",
+		Long:  `Create empty files or update the access and modification times of existing files on Windows.`,
 		Args:  utils.MinimumNArgs(1),
 		RunE: func(c *engine.Command, args []string) error {
 			now := time.Now()
@@ -21,17 +21,17 @@ func NewTouchCmd() *engine.Command {
 			for _, filename := range args {
 				file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
 				if err != nil {
-					failures = append(failures, fmt.Errorf("touch 错误: 无法处理文件 %s: %w", filename, err))
+					failures = append(failures, fmt.Errorf("touch error: cannot process %s: %w", filename, err))
 					continue
 				}
 				if err := file.Close(); err != nil {
-					failures = append(failures, fmt.Errorf("touch 错误: 无法关闭文件 %s: %w", filename, err))
+					failures = append(failures, fmt.Errorf("touch error: cannot close %s: %w", filename, err))
 					continue
 				}
 
 				err = os.Chtimes(filename, now, now)
 				if err != nil {
-					failures = append(failures, fmt.Errorf("touch 错误: 无法更新 %s 的时间戳: %w", filename, err))
+					failures = append(failures, fmt.Errorf("touch error: cannot update timestamps for %s: %w", filename, err))
 				}
 			}
 			return errors.Join(failures...)

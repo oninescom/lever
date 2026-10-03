@@ -9,8 +9,8 @@ import (
 func NewClearCmd() *engine.Command {
 	return &engine.Command{
 		Use:   "clear",
-		Short: "Linux 风格的 clear 清屏工具",
-		Long:  `清空当前终端屏幕上的所有内容，并将光标重置到左上角。`,
+		Short: "Clear the terminal screen",
+		Long:  `Clear the terminal screen and move the cursor to the top left.`,
 		Args:  utils.NoArgs,
 		Run: func(c *engine.Command, args []string) {
 			fmt.Print("\033[H\033[2J")

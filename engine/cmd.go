@@ -44,7 +44,7 @@ func (c *Command) ExecuteArgs(args []string) error {
 			return c.Help()
 		}
 		flags := c.Flags()
-		utils.EnsureHelpFlag(flags) // 💡 调用跨包大写函数
+		utils.EnsureHelpFlag(flags)
 		flags.SetInterspersed(false)
 		if err := flags.Parse(args); err != nil {
 			return err
@@ -66,7 +66,7 @@ func (c *Command) ExecuteArgs(args []string) error {
 					return child.Help()
 				}
 			}
-			return fmt.Errorf("未知命令: %s", args[1])
+			return fmt.Errorf("unknown command: %s", args[1])
 		}
 		for _, child := range c.Children {
 			if CommandName(child.Use) == args[0] {
@@ -76,7 +76,7 @@ func (c *Command) ExecuteArgs(args []string) error {
 				return child.ExecuteArgs(args[1:])
 			}
 		}
-		return fmt.Errorf("未知命令: %s", args[0])
+		return fmt.Errorf("unknown command: %s", args[0])
 	}
 	if c.PrepareArgs != nil {
 		args = c.PrepareArgs(args)
@@ -123,7 +123,7 @@ func (c *Command) Help() error {
 		fmt.Fprintln(os.Stdout, "\nUse \"lever [command] --help\" for more information.")
 		return nil
 	}
-	utils.EnsureHelpFlag(c.Flags()) // 💡 调用跨包大写函数
+	utils.EnsureHelpFlag(c.Flags())
 	fmt.Fprintf(os.Stdout, "Usage:\n  %s [flags]\n\nFlags:\n", usage)
 	c.FlagsSet.VisitAll(func(flag *pflag.Flag) {
 		if flag.Shorthand != "" {
@@ -137,7 +137,7 @@ func (c *Command) Help() error {
 
 func (c *Command) parseFlags(args []string) ([]string, bool, error) {
 	flags := c.Flags()
-	utils.EnsureHelpFlag(flags) // 💡 调用跨包大写函数
+	utils.EnsureHelpFlag(flags)
 	if err := flags.Parse(args); err != nil {
 		return nil, false, err
 	}

@@ -21,8 +21,8 @@ func NewDuCmd() *engine.Command {
 
 	cmd := &engine.Command{
 		Use:   "du [path...]",
-		Short: "Linux 风格的 du 磁盘空间占用统计工具",
-		Long:  `计算并查看文件或目录占用的磁盘空间大小。支持 -s 查看总计，以及 -h 格式化大小显示。`,
+		Short: "Show disk usage",
+		Long:  `Show disk usage for files or directories. Use -s for totals and -h for human-readable sizes.`,
 		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
 			targets := flags.Args()
@@ -34,7 +34,7 @@ func NewDuCmd() *engine.Command {
 			for _, target := range targets {
 				entries, err := scanDiskUsage(target, summarize)
 				if err != nil {
-					failures = append(failures, fmt.Errorf("du 错误: 无法读取 '%s': %w", target, err))
+					failures = append(failures, fmt.Errorf("du error: cannot read '%s': %w", target, err))
 					continue
 				}
 				for _, entry := range entries {
@@ -46,8 +46,8 @@ func NewDuCmd() *engine.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.BoolVarP(&summarize, "summarize", "s", false, "只显示每个参数的总计")
-	flags.BoolVarP(&humanReadable, "human-readable", "h", false, "以人类可读的格式打印大小 (例如 1K 234M)")
+	flags.BoolVarP(&summarize, "summarize", "s", false, "Show only the total for each argument")
+	flags.BoolVarP(&humanReadable, "human-readable", "h", false, "Show sizes in human-readable form (for example, 1K or 234M)")
 
 	return cmd
 }

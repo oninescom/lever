@@ -20,15 +20,15 @@ func EnsureHelpFlag(flags *pflag.FlagSet) {
 		return
 	}
 	if flags.ShorthandLookup("h") == nil {
-		flags.BoolP("help", "h", false, "显示帮助")
+		flags.BoolP("help", "h", false, "Show help")
 	} else {
-		flags.Bool("help", false, "显示帮助")
+		flags.Bool("help", false, "Show help")
 	}
 }
 
 func NoArgs(args []string) error {
 	if len(args) != 0 {
-		return fmt.Errorf("不接受位置参数，收到 %d 个", len(args))
+		return fmt.Errorf("expected no positional arguments, got %d", len(args))
 	}
 	return nil
 }
@@ -36,7 +36,7 @@ func NoArgs(args []string) error {
 func MinimumNArgs(min int) func([]string) error {
 	return func(args []string) error {
 		if len(args) < min {
-			return fmt.Errorf("至少需要 %d 个位置参数，收到 %d 个", min, len(args))
+			return fmt.Errorf("expected at least %d positional arguments, got %d", min, len(args))
 		}
 		return nil
 	}
@@ -45,7 +45,7 @@ func MinimumNArgs(min int) func([]string) error {
 func MaximumNArgs(max int) func([]string) error {
 	return func(args []string) error {
 		if len(args) > max {
-			return fmt.Errorf("最多接受 %d 个位置参数，收到 %d 个", max, len(args))
+			return fmt.Errorf("expected at most %d positional arguments, got %d", max, len(args))
 		}
 		return nil
 	}
@@ -64,7 +64,7 @@ func ValidMultiSourceDestination(sources []string, destination string) bool {
 	return err == nil && info.IsDir()
 }
 
-// EditProfileFile 暴露给 commands/system.go 实现一键无痕安装/卸载
+// EditProfileFile updates a shell profile for installation or removal.
 func EditProfileFile(path string, create bool, edit func(string) (string, error)) error {
 	old, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -112,7 +112,7 @@ $target = $env:LEVER_PROFILE_TARGET
 	cmd.Stdin = bytes.NewReader([]byte(base64.StdEncoding.EncodeToString(data)))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("PowerShell 写入失败: %w: %s", err, bytes.TrimSpace(output))
+		return fmt.Errorf("PowerShell write failed: %w: %s", err, bytes.TrimSpace(output))
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func ProfileEncoding(data []byte) (string, func(string) []byte, error) {
 		}
 		body := data[len(format.Bom):]
 		if len(body)%2 != 0 {
-			return "", nil, fmt.Errorf("PowerShell 配置文件的 UTF-16 内容不完整")
+			return "", nil, fmt.Errorf("PowerShell profile contains incomplete UTF-16 data")
 		}
 		units := make([]uint16, len(body)/2)
 		for i := range units {

@@ -18,8 +18,8 @@ func NewNcCmd() *engine.Command {
 	)
 	cmd := &engine.Command{
 		Use:   "nc [hostname] [port]",
-		Short: "网络连接",
-		Long:  `建立任何 TCP/UDP 连接、监听端口、双向传递网络流或通过管道无损传输文件。`,
+		Short: "Network connections",
+		Long:  `Connect or listen over TCP or UDP, exchange data in both directions, and transfer files through pipes.`,
 		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
 			networkType := "tcp"
@@ -32,13 +32,13 @@ func NewNcCmd() *engine.Command {
 					portStr = flags.Arg(0)
 				}
 				if portStr == "" {
-					return fmt.Errorf("nc 错误: 监听模式下必须指定端口号 (例如: nc -l 8080)")
+					return fmt.Errorf("nc error: listen mode requires a port (for example: nc -l 8080)")
 				}
 				return runNcServer(networkType, portStr)
 			}
 
 			if flags.NArg() < 2 {
-				return fmt.Errorf("nc 错误: 必须指定目标主机和端口号 (例如: nc 127.0.0.1 8080)")
+				return fmt.Errorf("nc error: specify a host and port (for example: nc 127.0.0.1 8080)")
 			}
 			host := flags.Arg(0)
 			port := flags.Arg(1)
@@ -47,9 +47,9 @@ func NewNcCmd() *engine.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.BoolVarP(&listenMode, "listen", "l", false, "监听模式，开启本地端口等待连接")
-	flags.BoolVarP(&udpMode, "udp", "u", false, "切换为 UDP 模式 (默认使用 TCP)")
-	flags.StringVarP(&portStr, "port", "p", "", "指定本地或远端的目标端口号")
+	flags.BoolVarP(&listenMode, "listen", "l", false, "Listen on a local port for connections")
+	flags.BoolVarP(&udpMode, "udp", "u", false, "Use UDP instead of TCP")
+	flags.StringVarP(&portStr, "port", "p", "", "Local or remote port number")
 
 	return cmd
 }
@@ -61,13 +61,13 @@ func runNcServer(network, port string) error {
 	if network == "tcp" {
 		listener, err := net.Listen("tcp", address)
 		if err != nil {
-			return fmt.Errorf("监听失败: %w", err)
+			return fmt.Errorf("listen failed: %w", err)
 		}
 		defer listener.Close()
 
 		conn, err := listener.Accept()
 		if err != nil {
-			return fmt.Errorf("接受连接失败: %w", err)
+			return fmt.Errorf("accept failed: %w", err)
 		}
 		defer conn.Close()
 		fmt.Fprintf(os.Stderr, "Connection received from %s\n", conn.RemoteAddr().String())
@@ -78,7 +78,7 @@ func runNcServer(network, port string) error {
 		portInt, _ := strconv.Atoi(port)
 		conn, err := net.ListenUDP("udp", &net.UDPAddr{Port: portInt})
 		if err != nil {
-			return fmt.Errorf("UDP监听失败: %w", err)
+			return fmt.Errorf("UDP listen failed: %w", err)
 		}
 		defer conn.Close()
 
@@ -99,7 +99,7 @@ func runNcClient(network, host, port string) error {
 	address := net.JoinHostPort(host, port)
 	conn, err := net.Dial(network, address)
 	if err != nil {
-		return fmt.Errorf("连接到 %s 失败: %w", address, err)
+		return fmt.Errorf("cannot connect to %s: %w", address, err)
 	}
 	defer conn.Close()
 	fmt.Fprintf(os.Stderr, "Connected to %s successfully.\n", address)

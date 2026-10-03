@@ -17,24 +17,23 @@ func NewCpCmd() *engine.Command {
 
 	cmd := &engine.Command{
 		Use:   "cp [source...] [destination]",
-		Short: "Linux 风格的 cp 复制工具",
-		Long:  `复制文件或文件夹。支持使用 -r 递归复制整个目录树，以及使用 -f 强制覆盖。`,
+		Short: "Copy files and directories",
+		Long:  `Copy files or directories. Use -r to copy directories recursively and -f to overwrite existing files.`,
 		Args:  utils.MinimumNArgs(2),
 		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
 			sources := flags.Args()[:len(flags.Args())-1]
 			dest := flags.Args()[len(flags.Args())-1]
 
-			// 多文件批量复制时，利用你上传的 ValidMultiSourceDestination 进行目标目录校验
 			if len(sources) > 1 && !utils.ValidMultiSourceDestination(sources, dest) {
-				return fmt.Errorf("cp 错误: 复制多个文件或目录时，目标必须是一个已存在的目录")
+				return fmt.Errorf("cp error: destination must be an existing directory when copying multiple sources")
 			}
 
 			var failures []error
 			for _, src := range sources {
 				err := copyPath(src, dest, recursive, force)
 				if err != nil {
-					failures = append(failures, fmt.Errorf("cp 错误: 复制 '%s' 失败: %w", src, err))
+					failures = append(failures, fmt.Errorf("cp error: cannot copy '%s': %w", src, err))
 				}
 			}
 			return errors.Join(failures...)
@@ -42,8 +41,8 @@ func NewCpCmd() *engine.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.BoolVarP(&recursive, "recursive", "r", false, "递归复制目录下的所有内容")
-	flags.BoolVarP(&force, "force", "f", false, "强制覆盖已存在的目标文件")
+	flags.BoolVarP(&recursive, "recursive", "r", false, "Copy directories and their contents recursively")
+	flags.BoolVarP(&force, "force", "f", false, "Overwrite existing destination files")
 
 	return cmd
 }
@@ -54,7 +53,6 @@ func copyPath(src, dest string, recursive, force bool) error {
 		return err
 	}
 
-	// 如果目标本身就是已存在目录，则在内部新建同名文件
 	destStat, err := os.Stat(dest)
 	if err == nil && destStat.IsDir() {
 		dest = filepath.Join(dest, filepath.Base(src))
@@ -62,7 +60,7 @@ func copyPath(src, dest string, recursive, force bool) error {
 
 	if srcStat.IsDir() {
 		if !recursive {
-			return fmt.Errorf("'%s' 是一个目录 (未指定 -r 参数)", src)
+			return fmt.Errorf("'%s' is a directory (use -r)", src)
 		}
 		if err := checkCopyDestination(src, dest); err != nil {
 			return err
@@ -70,7 +68,7 @@ func copyPath(src, dest string, recursive, force bool) error {
 		return copyDir(src, dest, force)
 	}
 	if err == nil && os.SameFile(srcStat, destStat) {
-		return fmt.Errorf("源文件和目标文件相同")
+		return fmt.Errorf("source and destination are the same file")
 	}
 	return copyFile(src, dest, force)
 }
@@ -112,7 +110,7 @@ func checkCopyDestination(src, dest string) error {
 		return err
 	}
 	if rel == "." || rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return fmt.Errorf("目标目录位于源目录内部: %s", dest)
+		return fmt.Errorf("destination is inside the source directory: %s", dest)
 	}
 	return nil
 }
@@ -120,7 +118,7 @@ func checkCopyDestination(src, dest string) error {
 func copyFile(src, dest string, force bool) error {
 	if !force {
 		if _, err := os.Stat(dest); err == nil {
-			return fmt.Errorf("目标文件 '%s' 已存在 (可使用 -f 强制覆盖)", dest)
+			return fmt.Errorf("destination file '%s' already exists (use -f to overwrite)", dest)
 		}
 	}
 

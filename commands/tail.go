@@ -29,7 +29,7 @@ func NewTailCmd() *engine.Command {
 	var lineCount int64 = 10
 	cmd := &engine.Command{
 		Use:         "tail [file]",
-		Short:       "查看文件末尾内容，可持续监控新增内容",
+		Short:       "Show the end of a file and follow new content",
 		PrepareArgs: tailFlagArgs,
 		Args:        utils.MinimumNArgs(1),
 		RunE: func(c *engine.Command, args []string) error {
@@ -45,12 +45,12 @@ func NewTailCmd() *engine.Command {
 				}
 			}
 			if filename == "" {
-				return fmt.Errorf("tail 错误: 未指定目标文件")
+				return fmt.Errorf("tail error: no file specified")
 			}
 			return runTailEngine(filename, lineCount, follow)
 		},
 	}
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "持续监听文件新增内容")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow new content appended to the file")
 	return cmd
 }
 
@@ -82,7 +82,7 @@ func tailFlagArgs(args []string) []string {
 func runTailEngine(filename string, lines int64, follow bool) error {
 	file, err := os.Open(filename)
 	if err != nil {
-		return fmt.Errorf("无法打开文件 %s: %w", filename, err)
+		return fmt.Errorf("cannot open file %s: %w", filename, err)
 	}
 	defer func() { _ = file.Close() }()
 
@@ -176,10 +176,7 @@ func tailStart(file *os.File, size, lines int64, encoding tailEncoding, prefix i
 		end -= (end - prefix) % 2
 	}
 	for end > prefix {
-		start := end - blockSize
-		if start < prefix {
-			start = prefix
-		}
+		start := max(end-blockSize, prefix)
 		chunk := buf[:int(end-start)]
 		if _, err := file.ReadAt(chunk, start); err != nil {
 			return 0, err

@@ -16,35 +16,35 @@ func NewAwkCmd() *engine.Command {
 
 	cmd := &engine.Command{
 		Use:         "awk [column_indices...]",
-		Short:       "简化版的 awk 文本流列切片工具",
-		Long:        `接收管道流或标准输入，将每行文本按分隔符切片。参数传入要提取的列索引（1代表第一列，-1代表最后一列）。`,
+		Short:       `Select columns from text streams`,
+		Long:        `Read piped input and select columns from each line. Column indices start at 1; -1 selects the last column.`,
 		PrepareArgs: awkFlagArgs,
-		// 💡 强力复用你上传的校验器：至少需要指定一个要提取的列索引
+		// Require at least one column index.
 		Args: utils.MinimumNArgs(1),
 		RunE: func(c *engine.Command, args []string) error {
 
-			// 1. 解析用户传入的列索引切片（如将 "1", "2" 转为 int 数组）
+			// Parse requested column indices.
 			var targetCols []int
 			for _, str := range args {
 				idx, err := strconv.Atoi(str)
 				if err != nil {
-					return fmt.Errorf("awk 错误: 无效的列索引 '%s'，必须为整数", str)
+					return fmt.Errorf("awk error: invalid column index '%s'; expected an integer", str)
 				}
 				targetCols = append(targetCols, idx)
 			}
 
-			// 2. 管道数据流判定与拦截处理
+			// Read from piped standard input.
 			if utils.StdinIsPipe() {
 				return processAwkStream(os.Stdin, os.Stdout, fieldDelimiter, targetCols)
 			} else {
-				return fmt.Errorf("awk 错误: 未检测到管道输入流。用法示例: ls | awk 1 5")
+				return fmt.Errorf("awk error: no piped input detected. Example: ls | awk 1 5")
 			}
 		},
 	}
 
 	flags := cmd.Flags()
-	// 💡 -F 参数让用户能自由修改列切割符（如 -F , 或 -F :）
-	flags.StringVarP(&fieldDelimiter, "field-separator", "F", "", "指定每行的字段分隔符 (默认使用连续空白字符)")
+	// -F selects a custom field separator.
+	flags.StringVarP(&fieldDelimiter, "field-separator", "F", "", "Field separator (default: consecutive whitespace)")
 
 	return cmd
 }
@@ -85,7 +85,7 @@ func isNegativeIndex(value string) bool {
 	return len(value) > 1 && value[0] == '-' && strings.Trim(value[1:], "0123456789") == ""
 }
 
-// 核心流处理函数：逐行扫描，高能切片
+// processAwkStream scans each input line and selects the requested fields.
 func processAwkStream(reader io.Reader, writer io.Writer, delimiter string, targetCols []int) error {
 	input := bufio.NewReader(reader)
 	for {
@@ -99,16 +99,15 @@ func processAwkStream(reader io.Reader, writer io.Writer, delimiter string, targ
 		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
 		var columns []string
 
-		// 3. 字段切割算法分流
+		// Whitespace mode treats consecutive whitespace as one separator.
 		if delimiter == "" {
-			// 默认行为：将连续的空格、制表符等全部视作单个分隔符进行盲切 [INDEX]
 			columns = strings.Fields(line)
 		} else {
-			// 自定义字符切割模式 [INDEX]
+			// A custom separator splits at each occurrence.
 			columns = strings.Split(line, delimiter)
 		}
 
-		// 如果切出来的列是空的，直接跳过本行
+		// Skip lines with no fields.
 		if len(columns) == 0 {
 			if readErr == io.EOF {
 				return nil
@@ -116,28 +115,28 @@ func processAwkStream(reader io.Reader, writer io.Writer, delimiter string, targ
 			continue
 		}
 
-		// 4. 根据用户索引提取并拼接目标列 [INDEX]
+		// Select fields using one-based or negative indices.
 		var result []string
 		for _, colIdx := range targetCols {
 			actualIdx := 0
 
 			if colIdx > 0 {
-				// 正数情况：1 代表 columns[0]
+				// 1 selects the first field.
 				actualIdx = colIdx - 1
 			} else if colIdx < 0 {
-				// 负数情况（极客独创扩展）：-1 代表最后一列，-2 代表倒数第二列
+				// -1 selects the last field.
 				actualIdx = len(columns) + colIdx
 			} else {
-				// 传入 0 时，按照标准 Linux awk 习惯，直接输出整行 [INDEX]
+				// 0 selects the entire line.
 				result = append(result, line)
 				continue
 			}
 
-			// 安全防护边界检查：防止用户要提取的列数超出当前行实际拥有的总列数
+			// Out-of-range fields contribute an empty string.
 			if actualIdx >= 0 && actualIdx < len(columns) {
 				result = append(result, columns[actualIdx])
 			} else {
-				result = append(result, "") // 超出范围补空字符串，防止崩溃
+				result = append(result, "")
 			}
 		}
 

@@ -17,8 +17,8 @@ func NewGrepCmd() *engine.Command {
 
 	cmd := &engine.Command{
 		Use:   "grep [pattern] [file...]",
-		Short: "Linux 风格的 grep 文本搜索工具",
-		Long:  `使用强大的正则表达式在本地文件或管道流中检索特定的文本行。支持高亮、计数、反选等主流功能。`,
+		Short: "Search text with regular expressions",
+		Long:  `Search files or piped input with regular expressions. Supports highlighting, counting, and inverted matches.`,
 		Args:  utils.MinimumNArgs(1),
 		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
@@ -30,14 +30,14 @@ func NewGrepCmd() *engine.Command {
 			}
 			reg, err := regexp.Compile(patternStr)
 			if err != nil {
-				return fmt.Errorf("grep 错误: 无效的正则表达式 '%s': %w", patternStr, err)
+				return fmt.Errorf("grep error: invalid regular expression '%s': %w", patternStr, err)
 			}
 			if len(files) == 0 && utils.StdinIsPipe() {
 				return processGrepStream(os.Stdin, reg, "", invertMatch, lineNumber, countOnly, filesWithMatch, colorOpt)
 			}
 
 			if len(files) == 0 {
-				return fmt.Errorf("grep 错误: 未指定输入文件或没有检测到管道输入")
+				return fmt.Errorf("grep error: no input file or piped input provided")
 			}
 
 			showFilename := len(files) > 1
@@ -45,7 +45,7 @@ func NewGrepCmd() *engine.Command {
 			for _, filename := range files {
 				file, err := os.Open(filename)
 				if err != nil {
-					failures = append(failures, fmt.Errorf("grep 错误: 无法打开文件 %s: %w", filename, err))
+					failures = append(failures, fmt.Errorf("grep error: cannot open %s: %w", filename, err))
 					continue
 				}
 
@@ -55,10 +55,10 @@ func NewGrepCmd() *engine.Command {
 				}
 
 				if err := processGrepStream(file, reg, ctxName, invertMatch, lineNumber, countOnly, filesWithMatch, colorOpt); err != nil {
-					failures = append(failures, fmt.Errorf("grep 错误: 无法读取文件 %s: %w", filename, err))
+					failures = append(failures, fmt.Errorf("grep error: cannot read %s: %w", filename, err))
 				}
 				if err := file.Close(); err != nil {
-					failures = append(failures, fmt.Errorf("grep 错误: 无法关闭文件 %s: %w", filename, err))
+					failures = append(failures, fmt.Errorf("grep error: cannot close %s: %w", filename, err))
 				}
 			}
 			return errors.Join(failures...)
@@ -66,12 +66,12 @@ func NewGrepCmd() *engine.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.BoolVarP(&ignoreCase, "ignore-case", "i", false, "忽略大小写差异")
-	flags.BoolVarP(&invertMatch, "invert-match", "v", false, "反向选择，只显示不匹配的行")
-	flags.BoolVarP(&lineNumber, "line-number", "n", false, "在输出前面加上行号")
-	flags.BoolVarP(&countOnly, "count", "c", false, "只计算并打印匹配成功的行数")
-	flags.BoolVarP(&filesWithMatch, "files-with-matches", "l", false, "只列出匹配成功的文件名，而不显示具体内容")
-	flags.StringVar(&colorOpt, "color", "auto", "高亮显示匹配的关键词 (always, never, auto)")
+	flags.BoolVarP(&ignoreCase, "ignore-case", "i", false, "Ignore case")
+	flags.BoolVarP(&invertMatch, "invert-match", "v", false, "Show only non-matching lines")
+	flags.BoolVarP(&lineNumber, "line-number", "n", false, "Prefix output with line numbers")
+	flags.BoolVarP(&countOnly, "count", "c", false, "Print only the number of matching lines")
+	flags.BoolVarP(&filesWithMatch, "files-with-matches", "l", false, "Print only names of files with matches")
+	flags.StringVar(&colorOpt, "color", "auto", "Highlight matches (always, never, auto)")
 	return cmd
 
 }
@@ -107,7 +107,6 @@ func processGrepStream(reader io.Reader, reg *regexp.Regexp, filename string, in
 
 				outText := text
 				if !invert && (color == "always" || color == "auto") {
-					// 优雅跨包调用全局唯一的 utils 红色与重置常量
 					outText = reg.ReplaceAllStringFunc(text, func(m string) string {
 						return utils.ColorBoldRed + m + utils.ColorReset
 					})

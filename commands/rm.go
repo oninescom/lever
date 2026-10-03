@@ -15,8 +15,8 @@ func NewRmCmd() *engine.Command {
 
 	cmd := &engine.Command{
 		Use:   "rm [file...]",
-		Short: "Linux 风格的 rm 删除工具",
-		Long:  `删除指定的文件或目录。支持使用 -r 递归抹除目录，以及使用 -f 强行忽略不存在的文件。`,
+		Short: "Remove files or directories",
+		Long:  `Remove files or directories. Use -r to remove directories recursively and -f to ignore missing paths.`,
 		Args:  utils.MinimumNArgs(1),
 		RunE: func(c *engine.Command, args []string) error {
 			flags := c.Flags()
@@ -28,16 +28,16 @@ func NewRmCmd() *engine.Command {
 					if force {
 						continue
 					}
-					failures = append(failures, fmt.Errorf("rm 错误: 无法删除 '%s': 文件或目录不存在", target))
+					failures = append(failures, fmt.Errorf("rm error: cannot remove '%s': no such file or directory", target))
 					continue
 				}
 				if err != nil {
-					failures = append(failures, fmt.Errorf("rm 错误: 无法检查 '%s': %w", target, err))
+					failures = append(failures, fmt.Errorf("rm error: cannot inspect '%s': %w", target, err))
 					continue
 				}
 
 				if stat.IsDir() && !recursive {
-					failures = append(failures, fmt.Errorf("rm 错误: 无法删除 '%s': 是一个目录 (未指定 -r 参数)", target))
+					failures = append(failures, fmt.Errorf("rm error: cannot remove '%s': is a directory (use -r)", target))
 					continue
 				}
 
@@ -52,7 +52,7 @@ func NewRmCmd() *engine.Command {
 
 				err = os.RemoveAll(target)
 				if err != nil {
-					failures = append(failures, fmt.Errorf("rm 错误: 抹除 %s 失败: %w", target, err))
+					failures = append(failures, fmt.Errorf("rm error: cannot remove %s: %w", target, err))
 				}
 			}
 			return errors.Join(failures...)
@@ -60,8 +60,8 @@ func NewRmCmd() *engine.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.BoolVarP(&recursive, "recursive", "r", false, "递归删除目录及其下所有内容")
-	flags.BoolVarP(&force, "force", "f", false, "强制删除，忽略不存在的文件且不报警告")
+	flags.BoolVarP(&recursive, "recursive", "r", false, "Remove directories and their contents recursively")
+	flags.BoolVarP(&force, "force", "f", false, "Ignore missing files and suppress warnings")
 
 	return cmd
 }
