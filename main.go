@@ -32,10 +32,12 @@ func main() {
 		commands.NewAwkCmd(),
 		commands.NewTailCmd(),
 		commands.NewCurlCmd(),
+		commands.NewHashCmd(),
 		commands.NewPingCmd(),
 		commands.NewSedCmd(),
 		commands.NewUnameCmd(),
 		commands.NewWcCmd(),
+		commands.NewHashCmd(),
 	)
 
 	rootCmd.AddCommand(
