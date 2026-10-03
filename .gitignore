@@ -26,3 +26,10 @@ vendor/
 *.swp
 .codegraph
 cmd_init.bat
+
+/dist/
+.build/
+lever-installer-universal.exe
+
+/_isis_temp/
+*.iss~

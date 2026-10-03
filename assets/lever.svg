@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Lever icon">
+  <rect x="8" y="8" width="240" height="240" rx="48" fill="#121D2B"/>
+  <rect x="9" y="9" width="238" height="238" rx="47" fill="none" stroke="#314155" stroke-width="2"/>
+  <path d="M135 149 108 198h54z" fill="#FFB35A"/>
+  <path d="M117 53 208 110 49 180" fill="none" stroke="#5CE1D3" stroke-width="20" stroke-linecap="butt" stroke-linejoin="miter"/>
+</svg>

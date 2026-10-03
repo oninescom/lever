@@ -13,7 +13,7 @@ func main() {
 	var rootCmd = &engine.Command{
 		Use:   "lever",
 		Short: "lever engine",
-		Long:  `A compact, pure Go developer toolbox for file, text, network, and system tasks.`,
+		Long:  `A highly integrated native Unix-like toolbox for Windows environments`,
 	}
 
 	rootCmd.AddCommand(
@@ -52,13 +52,13 @@ func main() {
 		for _, child := range rootCmd.Children {
 			if engine.CommandName(child.Use) == execName {
 				if err := child.ExecuteArgs(os.Args[1:]); err != nil {
-					fmt.Fprintf(os.Stderr, "lever execution error: %v\n", err)
+					fmt.Fprintf(os.Stderr, "lever running error: %v\n", err)
 					os.Exit(1)
 				}
 				return
 			}
 		}
-		fmt.Fprintf(os.Stderr, "lever error: no command is registered for '%s'.\n", execName)
+		fmt.Fprintf(os.Stderr, "lever error: unregistered sub-command '%s'\n", execName)
 		os.Exit(1)
 	}
 
