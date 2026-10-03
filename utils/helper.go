@@ -2,9 +2,12 @@ package utils
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"syscall"
 	"unicode/utf16"
@@ -82,12 +85,36 @@ func EditProfileFile(path string, create bool, edit func(string) (string, error)
 	if updated == existing {
 		return nil
 	}
+	encoded := encode(updated)
 	if create {
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-			return err
+			if fallbackErr := writeProfileWithPowerShell(path, encoded); fallbackErr != nil {
+				return errors.Join(err, fallbackErr)
+			}
+			return nil
 		}
 	}
-	return os.WriteFile(path, encode(updated), 0644)
+	if err := os.WriteFile(path, encoded, 0644); err != nil {
+		if fallbackErr := writeProfileWithPowerShell(path, encoded); fallbackErr != nil {
+			return errors.Join(err, fallbackErr)
+		}
+	}
+	return nil
+}
+
+func writeProfileWithPowerShell(path string, data []byte) error {
+	const script = `$ErrorActionPreference = 'Stop'
+$target = $env:LEVER_PROFILE_TARGET
+[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target)) | Out-Null
+[IO.File]::WriteAllBytes($target, [Convert]::FromBase64String([Console]::In.ReadToEnd()))`
+	cmd := exec.Command("pwsh", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd.Env = append(os.Environ(), "LEVER_PROFILE_TARGET="+path)
+	cmd.Stdin = bytes.NewReader([]byte(base64.StdEncoding.EncodeToString(data)))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("PowerShell 写入失败: %w: %s", err, bytes.TrimSpace(output))
+	}
+	return nil
 }
 
 func ProfileEncoding(data []byte) (string, func(string) []byte, error) {

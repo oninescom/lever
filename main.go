@@ -32,6 +32,11 @@ func main() {
 		commands.NewAwkCmd(),
 	)
 
+	rootCmd.AddCommand(
+		commands.NewInstallCmd(rootCmd),
+		commands.NewUninstallCmd(),
+	)
+
 	execName := filepath.Base(os.Args[0])
 	execName = strings.TrimSuffix(execName, filepath.Ext(execName))
 
