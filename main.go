@@ -28,6 +28,7 @@ func main() {
 		commands.NewPwdCmd(),
 		commands.NewClearCmd(),
 		commands.NewNcCmd(),
+		commands.NewDuCmd(),
 	)
 
 	execName := filepath.Base(os.Args[0])
