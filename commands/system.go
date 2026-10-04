@@ -437,28 +437,8 @@ func uninstallCMD() error {
 	if err != nil {
 		return err
 	}
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		entries = nil
-		err = nil
-	}
-	if err != nil {
+	if err := removeLeverShims(dir); err != nil {
 		return err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".cmd") {
-			continue
-		}
-		path := filepath.Join(dir, entry.Name())
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if strings.HasPrefix(string(content), shimMarker+"\r\n") {
-			if err := os.Remove(path); err != nil {
-				return err
-			}
-		}
 	}
 	state, err := registry.OpenKey(registry.CURRENT_USER, stateKey, registry.QUERY_VALUE|registry.SET_VALUE)
 	if errors.Is(err, registry.ErrNotExist) {
@@ -497,6 +477,41 @@ func uninstallCMD() error {
 		return err
 	}
 	notifyEnvironmentChange()
+	return nil
+}
+
+func removeLeverShims(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".cmd") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(string(content), shimMarker+"\r\n") {
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+		}
+	}
+	if err := os.Remove(dir); err != nil {
+		if errors.Is(err, windows.ERROR_DIR_NOT_EMPTY) || errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if err := os.Remove(filepath.Dir(dir)); err != nil && !errors.Is(err, windows.ERROR_DIR_NOT_EMPTY) && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	return nil
 }
 

@@ -56,6 +56,46 @@ func TestWriteShimPreservesForeignFile(t *testing.T) {
 	}
 }
 
+func TestRemoveLeverShimsRemovesEmptyDirectories(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "Lever", "bin")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeShim(filepath.Join(dir, "ls.cmd"), `C:\Tools\lever.exe`, "ls"); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeLeverShims(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "Lever")); !os.IsNotExist(err) {
+		t.Fatalf("Lever directory still exists: %v", err)
+	}
+}
+
+func TestRemoveLeverShimsPreservesForeignFiles(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Lever", "bin")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeShim(filepath.Join(dir, "ls.cmd"), `C:\Tools\lever.exe`, "ls"); err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(foreign, []byte("keep"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeLeverShims(dir); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(foreign); err != nil || string(data) != "keep" {
+		t.Fatalf("foreign file changed: %q, %v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "ls.cmd")); !os.IsNotExist(err) {
+		t.Fatalf("Lever shim still exists: %v", err)
+	}
+}
+
 func TestShimForwardsArguments(t *testing.T) {
 	got := shimContent(`C:\My Tools\lever.exe`, "awk")
 	want := shimMarker + "\r\n@echo off\r\n@" + `"C:\My Tools\lever.exe" awk %*` + "\r\n"
