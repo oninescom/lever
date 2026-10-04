@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,7 +20,7 @@ func TestCurlRejectsHTTPErrorWithoutOverwritingOutput(t *testing.T) {
 	if err := os.WriteFile(output, []byte("original"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := NewCurlCmd().ExecuteArgs([]string{"-o", output, server.URL}); err == nil {
+	if err := NewCurlCmd().ExecuteArgs([]string{"-f", "-o", output, server.URL}); err == nil {
 		t.Fatal("expected an error for HTTP 404")
 	}
 	data, err := os.ReadFile(output)
@@ -115,6 +116,122 @@ func TestCurlRequestMethodAndData(t *testing.T) {
 				t.Fatalf("response = %q, %v", data, err)
 			}
 		})
+	}
+}
+
+func TestCurlHeadersUploadAndAuthentication(t *testing.T) {
+	var gotMethod, gotBody, gotHeader, gotAgent, gotUser, gotPassword string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		gotMethod, gotBody = r.Method, string(body)
+		gotHeader, gotAgent = r.Header.Get("X-Test"), r.UserAgent()
+		gotUser, gotPassword, _ = r.BasicAuth()
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	upload := filepath.Join(dir, "upload.txt")
+	headers := filepath.Join(dir, "headers.txt")
+	output := filepath.Join(dir, "response.txt")
+	if err := os.WriteFile(upload, []byte("payload"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(headers, []byte("X-Test: from-file\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err := NewCurlCmd().ExecuteArgs([]string{"-T", upload, "-H", "@" + headers, "-u", "alice:secret", "-A", "TestAgent", "-o", output, server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != "PUT" || gotBody != "payload" || gotHeader != "from-file" || gotAgent != "TestAgent" || gotUser != "alice" || gotPassword != "secret" {
+		t.Fatalf("request = %q %q %q %q %q %q", gotMethod, gotBody, gotHeader, gotAgent, gotUser, gotPassword)
+	}
+}
+
+func TestCurlHeadAndHTTPErrorModes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Test", "visible")
+		w.WriteHeader(http.StatusNotFound)
+		if r.Method != http.MethodHead {
+			_, _ = w.Write([]byte("missing"))
+		}
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	output := filepath.Join(dir, "response.txt")
+	if err := NewCurlCmd().ExecuteArgs([]string{"-I", "-o", output, server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil || !strings.Contains(string(data), "404 Not Found") || !strings.Contains(string(data), "X-Test: visible") || strings.Contains(string(data), "missing") {
+		t.Fatalf("HEAD output = %q, %v", data, err)
+	}
+	if err := NewCurlCmd().ExecuteArgs([]string{"-o", output, server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(output)
+	if err != nil || string(data) != "missing" {
+		t.Fatalf("HTTP error body = %q, %v", data, err)
+	}
+	if err := NewCurlCmd().ExecuteArgs([]string{"-f", "-o", output, server.URL}); err == nil {
+		t.Fatal("expected -f to fail")
+	}
+	data, err = os.ReadFile(output)
+	if err != nil || string(data) != "missing" {
+		t.Fatalf("-f changed output = %q, %v", data, err)
+	}
+}
+
+func TestCurlCLIOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/missing" {
+			http.Error(w, "missing", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("X-Test", "visible")
+		_, _ = w.Write([]byte("body"))
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "lever.exe")
+	if output, err := exec.Command("go", "build", "-o", exe, "..").CombinedOutput(); err != nil {
+		t.Fatalf("build lever: %v\n%s", err, output)
+	}
+	run := func(args ...string) (string, string, error) {
+		command := exec.Command(exe, append([]string{"curl"}, args...)...)
+		command.Dir = dir
+		var stdout, stderr bytes.Buffer
+		command.Stdout, command.Stderr = &stdout, &stderr
+		err := command.Run()
+		return stdout.String(), stderr.String(), err
+	}
+	stdout, _, err := run("-i", server.URL+"/remote.txt")
+	if err != nil || !strings.Contains(stdout, "X-Test: visible\r\n") || !strings.HasSuffix(stdout, "\r\nbody") {
+		t.Fatalf("-i output = %q, %v", stdout, err)
+	}
+	stdout, stderr, err := run("-s", "-O", server.URL+"/remote.txt")
+	if err != nil || stdout != "" || stderr != "" {
+		t.Fatalf("-s -O output = %q %q, %v", stdout, stderr, err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "remote.txt"))
+	if err != nil || string(data) != "body" {
+		t.Fatalf("-O file = %q, %v", data, err)
+	}
+	stdout, stderr, err = run("-s", "-f", server.URL+"/missing")
+	if err == nil || stdout != "" || stderr != "" {
+		t.Fatalf("-s -f output = %q %q, %v", stdout, stderr, err)
+	}
+	stdout, _, err = run("-V")
+	if err != nil || !strings.HasPrefix(stdout, "lever curl ") {
+		t.Fatalf("-V output = %q, %v", stdout, err)
+	}
+	stdout, _, err = run("-h", "header")
+	if err != nil || !strings.Contains(stdout, "--header") {
+		t.Fatalf("-h output = %q, %v", stdout, err)
+	}
+	_, stderr, err = run("-v", "-o", filepath.Join(dir, "verbose.txt"), server.URL+"/remote.txt")
+	if err != nil || !strings.Contains(stderr, "> GET /remote.txt") || !strings.Contains(stderr, "< HTTP/1.1 200 OK") {
+		t.Fatalf("-v output = %q, %v", stderr, err)
 	}
 }
 

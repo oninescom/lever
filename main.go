@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"lever/commands"
 	"lever/engine"
@@ -37,7 +38,6 @@ func main() {
 		commands.NewSedCmd(),
 		commands.NewUnameCmd(),
 		commands.NewWcCmd(),
-		commands.NewHashCmd(),
 	)
 
 	rootCmd.AddCommand(
@@ -52,7 +52,10 @@ func main() {
 		for _, child := range rootCmd.Children {
 			if engine.CommandName(child.Use) == execName {
 				if err := child.ExecuteArgs(os.Args[1:]); err != nil {
-					fmt.Fprintf(os.Stderr, "lever running error: %v\n", err)
+					var silent *commands.SilentCurlError
+					if !errors.As(err, &silent) {
+						fmt.Fprintf(os.Stderr, "lever running error: %v\n", err)
+					}
 					os.Exit(1)
 				}
 				return
@@ -63,7 +66,10 @@ func main() {
 	}
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "lever error: %v\n", err)
+		var silent *commands.SilentCurlError
+		if !errors.As(err, &silent) {
+			fmt.Fprintf(os.Stderr, "lever error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }
